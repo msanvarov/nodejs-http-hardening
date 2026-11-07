@@ -1,0 +1,14 @@
+{
+  "name": "nodejs-http-hardening",
+  "version": "1.0.0",
+  "private": true,
+  "description": "A hardened Node.js HTTP server using only built-ins: headers, limits, timeouts, rate limiting, CORS, safe errors",
+  "type": "module",
+  "engines": {
+    "node": ">=22.13"
+  },
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test"
+  }
+}
