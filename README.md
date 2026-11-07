@@ -1,6 +1,6 @@
 # nodejs-http-hardening
 
-[![CI](https://github.com/msanvarov/nodejs-http-hardening/actions/workflows/test.yml/badge.svg)](https://github.com/msanvarov/nodejs-http-hardening/actions/workflows/test.yml) ![Node](https://img.shields.io/badge/node-%3E%3D22.13-339933?logo=node.js&logoColor=white) ![Dependencies](https://img.shields.io/badge/dependencies-0-brightgreen)
+[![CI](https://github.com/msanvarov/nodejs-http-hardening/actions/workflows/test.yml/badge.svg)](https://github.com/msanvarov/nodejs-http-hardening/actions/workflows/test.yml) ![Node](https://img.shields.io/badge/node-%3E%3D22.13-339933?logo=node.js&logoColor=white) ![Dependencies](https://img.shields.io/badge/dependencies-0-brightgreen) ![License: MIT](https://img.shields.io/badge/license-MIT-blue)
 
 A hardened HTTP server in one file ([server.js](server.js)), built on `node:http` with no dependencies, so you can see exactly what each protection does. The same ideas map directly onto Express, Fastify, Koa, or Hono.
 
@@ -68,3 +68,7 @@ npm test
 ```
 
 Found a mistake or want to add an example? Issues and pull requests are welcome.
+
+## License
+
+[MIT](LICENSE)
