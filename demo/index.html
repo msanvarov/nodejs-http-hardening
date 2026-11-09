@@ -1,0 +1,356 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HTTP Hardening Demo</title>
+<style>
+  :root {
+    --bg: #f7f7f8; --panel: #ffffff; --text: #16181d; --muted: #5c6370; --border: #e3e5e8; --code: #f1f2f4;
+    --bad: #d93036; --bad-bg: #fdecec; --good: #1f8a50; --good-bg: #e8f6ee; --accent: #3b6fe0;
+    --warn: #8a5a00; --warn-bg: #fff4d6;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0d0f12; --panel: #16191e; --text: #e8eaed; --muted: #9aa1ad; --border: #2a2f37; --code: #0f1216;
+      --bad: #ff6369; --bad-bg: #3a1517; --good: #4cc38a; --good-bg: #10291d; --accent: #6e9bff;
+      --warn: #e3b341; --warn-bg: #2e2410;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0d0f12; --panel: #16191e; --text: #e8eaed; --muted: #9aa1ad; --border: #2a2f37; --code: #0f1216;
+    --bad: #ff6369; --bad-bg: #3a1517; --good: #4cc38a; --good-bg: #10291d; --accent: #6e9bff;
+    --warn: #e3b341; --warn-bg: #2e2410;
+    color-scheme: dark;
+  }
+
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  }
+  code, pre, input[type="text"], .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 13px; }
+  a { color: var(--accent); }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  .wrap { max-width: 1100px; margin: 0 auto; padding: 0 16px; }
+  header { padding-top: 28px; padding-bottom: 8px; }
+  h1 { margin: 0 0 4px; font-size: 26px; letter-spacing: -0.01em; }
+  .lede { margin: 0 0 10px; color: var(--muted); }
+  .meta { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; margin: 0 0 16px; font-size: 14px; }
+  .notice { color: var(--warn); background: var(--warn-bg); border-radius: 999px; padding: 2px 10px; font-size: 13px; }
+  .tabs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+  .tabs a {
+    text-decoration: none; color: var(--text); background: var(--panel); border: 1px solid var(--border);
+    border-radius: 8px; padding: 5px 12px; font-size: 14px;
+  }
+  .tabs a:hover { border-color: var(--accent); }
+
+  main { padding-bottom: 40px; }
+  .card {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 12px;
+    padding: 20px; margin: 16px 0; scroll-margin-top: 16px;
+  }
+  .card h2 { margin: 0 0 4px; font-size: 19px; }
+  .card > p { margin: 0 0 14px; color: var(--muted); max-width: 75ch; }
+
+  form { display: grid; gap: 10px; margin-bottom: 14px; }
+  .fields { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: end; }
+  .field { display: grid; gap: 4px; flex: 1 1 260px; min-width: 0; }
+  .field.check { flex: 0 0 auto; display: flex; gap: 6px; align-items: center; padding-bottom: 8px; }
+  label { font-size: 13px; color: var(--muted); }
+  input[type="text"] {
+    width: 100%; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--border);
+    background: var(--code); color: var(--text);
+  }
+  input[type="range"] { width: 100%; accent-color: var(--accent); }
+  .range-row { display: flex; gap: 10px; align-items: center; }
+  .range-row output { min-width: 72px; text-align: right; font-variant-numeric: tabular-nums; }
+  .actions { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  .chip {
+    font: inherit; font-size: 13px; padding: 3px 10px; border-radius: 999px; cursor: pointer;
+    border: 1px solid var(--border); background: transparent; color: var(--text);
+  }
+  .chip:hover { border-color: var(--accent); }
+  .run {
+    font: inherit; font-weight: 600; padding: 7px 16px; border-radius: 8px; border: 0; cursor: pointer;
+    background: var(--accent); color: #fff; margin-right: 6px;
+  }
+  .run[disabled] { opacity: 0.6; cursor: progress; }
+
+  .panes { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  @media (max-width: 720px) { .panes { grid-template-columns: 1fr; } }
+  .pane { border: 1px solid var(--border); border-top: 3px solid; border-radius: 10px; padding: 12px; min-width: 0; }
+  .pane.unsafe { border-top-color: var(--bad); }
+  .pane.safe { border-top-color: var(--good); }
+  .pane-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 8px; }
+  .side { font-weight: 600; font-size: 14px; }
+  .unsafe .side { color: var(--bad); }
+  .safe .side { color: var(--good); }
+  .badge { font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 999px; white-space: nowrap; }
+  .badge.bad { color: var(--bad); background: var(--bad-bg); }
+  .badge.good { color: var(--good); background: var(--good-bg); }
+  .ran { font-size: 12px; color: var(--muted); margin-bottom: 8px; overflow-wrap: anywhere; }
+  .ran code { color: var(--text); }
+  pre {
+    margin: 8px 0 0; padding: 10px; border-radius: 8px; background: var(--code);
+    white-space: pre-wrap; overflow-wrap: anywhere; max-height: 220px; overflow: auto;
+  }
+  .placeholder { color: var(--muted); font-size: 14px; }
+  .spinner {
+    display: inline-block; width: 12px; height: 12px; border-radius: 50%; vertical-align: -1px; margin-right: 6px;
+    border: 2px solid var(--border); border-top-color: var(--accent); animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce) { .spinner { animation: none; } }
+  .fix { margin: 12px 0 0; font-size: 14px; }
+  .fix strong { color: var(--good); }
+
+  table.kv { width: 100%; border-collapse: collapse; font-size: 13px; table-layout: fixed; }
+  .kv td { padding: 4px 6px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  .kv tr:last-child td { border-bottom: 0; }
+  .kv td:first-child { width: 48%; color: var(--muted); overflow-wrap: anywhere; }
+  .kv .val { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .yes { color: var(--good); font-weight: 600; }
+  .no { color: var(--bad); font-weight: 600; }
+  .note { margin: 8px 0 0; font-size: 14px; }
+
+  .strip { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 4px; }
+  .sq { width: 12px; height: 12px; border-radius: 2px; background: var(--muted); opacity: 0.45; }
+  .sq.limited { background: var(--good); opacity: 1; }
+  .legend { display: flex; flex-wrap: wrap; gap: 12px; font-size: 12px; color: var(--muted); margin-top: 8px; }
+  .legend .sq { display: inline-block; vertical-align: -1px; margin-right: 4px; }
+
+  .timeline { position: relative; height: 34px; margin: 6px 0 2px; }
+  .track { position: absolute; left: 0; right: 0; top: 14px; height: 4px; border-radius: 2px; background: var(--border); }
+  .open { position: absolute; left: 0; top: 14px; height: 4px; border-radius: 2px; }
+  .tick { position: absolute; top: 11px; width: 2px; height: 10px; background: var(--text); opacity: 0.6; }
+  .end { position: absolute; top: 6px; width: 3px; height: 22px; border-radius: 2px; }
+  .axis { display: flex; justify-content: space-between; font-size: 11px; color: var(--muted); }
+</style>
+</head>
+<body>
+<header class="wrap">
+  <h1>nodejs-http-hardening</h1>
+  <p class="lede">The same real attacks, fired at a naive <code>node:http</code> server and at the hardened <code>server.js</code>.</p>
+  <p class="meta">
+    <a href="https://github.com/msanvarov/nodejs-http-hardening">github.com/msanvarov/nodejs-http-hardening</a>
+    <span class="notice">Runs deliberately vulnerable code locally · bound to 127.0.0.1</span>
+  </p>
+  <nav class="tabs" aria-label="Attacks"></nav>
+</header>
+<main class="wrap" id="cards"></main>
+
+<script>
+const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const kb = (n) => (n >= 1048576 ? (n / 1048576).toFixed(n % 1048576 ? 1 : 0) + ' MB' : Math.round(n / 1024) + ' KB');
+const kv = (rows) => `<table class="kv">${rows.map(([k, v]) => `<tr><td>${esc(k)}</td><td>${v}</td></tr>`).join('')}</table>`;
+
+const PANELS = [
+  {
+    id: 'headers',
+    title: 'Missing security headers',
+    explain: 'Without headers like CSP, X-Frame-Options and nosniff, browsers will frame your pages, guess content types, and leak URLs in the Referer.',
+    fields: [{ name: 'path', label: 'Request path', type: 'text', value: '/health' }],
+    chips: [{ label: '/health', set: { path: '/health' } }, { label: '/missing', set: { path: '/missing' } }],
+    fix: 'Set the headers on every response (helmet does this in Express).',
+    render: (r) => `<div class="mono">HTTP ${esc(r.status)} · ${9 - r.missing}/9 headers present</div>` +
+      kv(Object.entries(r.headers).map(([h, v]) => [h, v === null ? '<span class="no">✗ missing</span>' : `<div class="val"><span class="yes">✓</span> <span class="mono" title="${esc(v)}">${esc(v)}</span></div>`])),
+  },
+  {
+    id: 'errors',
+    title: 'Error details leaking to clients',
+    explain: 'An unexpected error happens while handling the request. The naive server sends the stack trace back, including the secret in the error message and your file paths.',
+    fields: [{ name: 'path', label: 'Request path', type: 'text', value: '/boom' }],
+    chips: [{ label: '/boom (throws)', set: { path: '/boom' } }, { label: '/health', set: { path: '/health' } }],
+    fix: 'Log the full error server-side; send clients only a generic message.',
+    render: (r) => `<div class="mono">HTTP ${esc(r.status)}</div><pre>${esc(r.body)}</pre>`,
+  },
+  {
+    id: 'body',
+    title: 'Unlimited request bodies',
+    explain: 'The naive server buffers whatever the client sends. A few large requests can exhaust memory and crash the process. Chunked bodies have no Content-Length, so the cap must also be checked while streaming.',
+    fields: [
+      { name: 'size', label: 'Body size', type: 'range', value: 2097152, min: 1024, max: 5242880, step: 1024, format: kb },
+      { name: 'chunked', label: 'Chunked, no Content-Length', type: 'checkbox', value: false },
+    ],
+    chips: [
+      { label: '10 KB', set: { size: 10240, chunked: false } },
+      { label: '2 MB', set: { size: 2097152, chunked: false } },
+      { label: '5 MB', set: { size: 5242880, chunked: false } },
+      { label: '2 MB chunked, no Content-Length', set: { size: 2097152, chunked: true } },
+    ],
+    fix: 'Cap the body (here 100 KB): reject on Content-Length and count bytes as they stream in.',
+    render: (r) => kv([
+      ['Status', `<span class="mono">${esc(r.status)}</span>`],
+      ['Buffered in server memory', `<span class="mono">${esc(r.bufferedBytes.toLocaleString('en-US'))} bytes</span>`],
+      ['Time', `<span class="mono">${esc(r.ms)} ms</span>`],
+    ]) + `<pre>${esc(r.body)}</pre>`,
+  },
+  {
+    id: 'ratelimit',
+    title: 'No rate limiting',
+    explain: 'One client fires requests as fast as it can, which is how brute-force logins and scrapers work. The hardened server allows 20 per minute per IP, then answers 429.',
+    fields: [{ name: 'count', label: 'Requests', type: 'range', value: 40, min: 10, max: 100, step: 1, format: (n) => n + ' req' }],
+    chips: [{ label: '15', set: { count: 15 } }, { label: '40', set: { count: 40 } }, { label: '100', set: { count: 100 } }],
+    fix: 'Per-client rate limit with 429 + Retry-After (use Redis or your proxy when you run several instances).',
+    render: (r) => {
+      const counts = Object.entries(r.counts).map(([s, n]) => `${n} × ${s}`).join(' · ');
+      return `<div class="mono">${esc(counts)}</div><div class="strip" role="img" aria-label="${esc(counts)}">` +
+        r.statuses.map((s) => `<span class="sq ${s === 429 ? 'limited' : ''}" title="${esc(s)}"></span>`).join('') +
+        '</div><div class="legend"><span><span class="sq"></span>200 served</span><span><span class="sq limited"></span>429 too many requests</span></div>';
+    },
+  },
+  {
+    id: 'cors',
+    title: 'CORS reflecting any origin',
+    explain: 'The naive server copies whatever Origin it receives into Access-Control-Allow-Origin, with credentials allowed. Any website a logged-in user visits can then read your API responses as that user.',
+    fields: [{ name: 'origin', label: 'Origin header', type: 'text', value: 'https://evil.example' }],
+    chips: [
+      { label: 'https://evil.example', set: { origin: 'https://evil.example' } },
+      { label: 'http://localhost:3000 (allowlisted)', set: { origin: 'http://localhost:3000' } },
+      { label: 'null', set: { origin: 'null' } },
+    ],
+    fix: 'Reflect only allowlisted origins, add Vary: Origin, and never pair a wildcard or reflection with credentials.',
+    render: (r) => kv([
+      ['Access-Control-Allow-Origin', r.allowOrigin === null ? '<span class="yes">not sent</span>' : `<span class="mono">${esc(r.allowOrigin)}</span>`],
+      ['Access-Control-Allow-Credentials', r.allowCredentials === null ? '<span class="yes">not sent</span>' : `<span class="mono">${esc(r.allowCredentials)}</span>`],
+    ]) + `<p class="note">${esc(r.meaning)}</p>`,
+  },
+  {
+    id: 'slowloris',
+    title: 'Slowloris (slow headers)',
+    explain: 'The client opens a connection and sends its headers one byte at a time, never finishing. Enough of these hold every connection slot open. The demo watches for 5 seconds.',
+    fields: [{ name: 'interval', label: 'One byte every', type: 'range', value: 500, min: 100, max: 2000, step: 100, format: (n) => n + ' ms' }],
+    chips: [{ label: '200 ms', set: { interval: 200 } }, { label: '500 ms', set: { interval: 500 } }, { label: '1000 ms', set: { interval: 1000 } }],
+    fix: 'headersTimeout and requestTimeout drop slow clients (2 s in this demo, 10 s / 30 s in server.js).',
+    slow: true,
+    render: (r) => {
+      const pct = (ms) => Math.min(100, (ms / r.capMs) * 100).toFixed(2) + '%';
+      const end = r.closedAtMs ?? r.capMs;
+      const color = r.closedAtMs === null ? 'var(--bad)' : 'var(--good)';
+      return `<div class="timeline" role="img" aria-label="${r.closedAtMs === null ? 'still open after 5 seconds' : 'dropped after ' + r.closedAtMs + ' ms'}">
+          <div class="track"></div><div class="open" style="width:${pct(end)};background:${color}"></div>
+          ${r.ticks.map((t) => `<span class="tick" style="left:${pct(t)}"></span>`).join('')}
+          <span class="end" style="left:calc(${pct(end)} - 2px);background:${color}"></span>
+        </div><div class="axis"><span>0 s</span><span>${r.capMs / 1000} s</span></div>` +
+        kv([
+          ['Connection', r.closedAtMs === null ? '<span class="no">still open at 5 s</span>' : `<span class="yes">dropped at ${(r.closedAtMs / 1000).toFixed(1)} s</span>`],
+          ['Server response', `<span class="mono">${esc(r.response ?? 'none')}</span>`],
+          ['Bytes trickled', `<span class="mono">${esc(r.bytesTrickled)}</span>`],
+        ]);
+    },
+  },
+];
+
+const params = new URLSearchParams(location.search);
+if (['dark', 'light'].includes(params.get('theme'))) document.documentElement.dataset.theme = params.get('theme');
+const only = params.get('only');
+const visible = PANELS.filter((p) => !only || p.id === only);
+
+const nav = document.querySelector('.tabs');
+if (only) nav.hidden = true;
+else nav.innerHTML = PANELS.map((p) => `<a href="#${p.id}">${esc(p.title)}</a>`).join('');
+
+function fieldHtml(p, f) {
+  const id = `${p.id}-${f.name}`;
+  if (f.type === 'checkbox') {
+    return `<div class="field check"><input type="checkbox" id="${id}" name="${f.name}" ${f.value ? 'checked' : ''}><label for="${id}">${esc(f.label)}</label></div>`;
+  }
+  if (f.type === 'range') {
+    return `<div class="field"><label for="${id}">${esc(f.label)}</label><div class="range-row">
+      <input type="range" id="${id}" name="${f.name}" min="${f.min}" max="${f.max}" step="${f.step}" value="${f.value}">
+      <output for="${id}">${esc(f.format(f.value))}</output></div></div>`;
+  }
+  return `<div class="field"><label for="${id}">${esc(f.label)}</label><input type="text" id="${id}" name="${f.name}" value="${esc(f.value)}" spellcheck="false" autocomplete="off"></div>`;
+}
+
+const pane = (side, label) => `<div class="pane ${side}"><div class="pane-head"><span class="side">${label}</span><span class="verdict"></span></div>
+  <div class="out" aria-live="polite"><span class="placeholder">Press Run to fire the attack.</span></div></div>`;
+
+document.getElementById('cards').innerHTML = visible.map((p) => `
+  <section class="card" id="${p.id}" aria-labelledby="${p.id}-title">
+    <h2 id="${p.id}-title">${esc(p.title)}</h2>
+    <p>${esc(p.explain)}</p>
+    <form data-panel="${p.id}">
+      <div class="fields">${p.fields.map((f) => fieldHtml(p, f)).join('')}</div>
+      <div class="actions"><button class="run" type="submit">Run</button>
+        ${p.chips.map((c, i) => `<button type="button" class="chip" data-chip="${i}">${esc(c.label)}</button>`).join('')}</div>
+    </form>
+    <div class="panes">${pane('unsafe', 'Unsafe · naive node:http')}${pane('safe', 'Safe · server.js')}</div>
+    <p class="fix"><strong>Fix:</strong> ${esc(p.fix)}</p>
+  </section>`).join('');
+
+function readForm(form, p) {
+  const input = {};
+  for (const f of p.fields) {
+    const el = form.elements[f.name];
+    input[f.name] = f.type === 'checkbox' ? el.checked : f.type === 'range' ? Number(el.value) : el.value;
+  }
+  return input;
+}
+
+function renderSide(el, p, r) {
+  const verdict = el.querySelector('.verdict');
+  const out = el.querySelector('.out');
+  if (r.error) {
+    verdict.innerHTML = '';
+    out.innerHTML = `<pre>Error: ${esc(r.error)}</pre>`;
+    return;
+  }
+  verdict.innerHTML = r.exploited ? '<span class="badge bad">Exploited</span>' : `<span class="badge good">${esc(r.okLabel ?? 'Blocked')}</span>`;
+  out.innerHTML = `<div class="ran">Ran: <code>${esc(r.request)}</code></div>${p.render(r)}`;
+}
+
+async function run(p) {
+  const card = document.getElementById(p.id);
+  const form = card.querySelector('form');
+  const button = form.querySelector('.run');
+  const sides = { unsafe: card.querySelector('.pane.unsafe'), safe: card.querySelector('.pane.safe') };
+  button.disabled = true;
+  for (const el of Object.values(sides)) {
+    el.querySelector('.verdict').innerHTML = '';
+    el.querySelector('.out').innerHTML = `<span class="placeholder"><span class="spinner"></span>Running…${p.slow ? ' (about 5 s)' : ''}</span>`;
+  }
+  try {
+    const res = await fetch('/api/' + p.id, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(readForm(form, p)),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error ?? res.statusText);
+    renderSide(sides.unsafe, p, data.unsafe);
+    renderSide(sides.safe, p, data.safe);
+  } catch (err) {
+    for (const el of Object.values(sides)) renderSide(el, p, { error: err.message });
+  } finally {
+    button.disabled = false;
+  }
+}
+
+for (const p of visible) {
+  const form = document.querySelector(`form[data-panel="${p.id}"]`);
+  form.addEventListener('submit', (e) => { e.preventDefault(); run(p); });
+  form.addEventListener('input', (e) => {
+    const f = p.fields.find((x) => x.name === e.target.name);
+    if (f?.type === 'range') e.target.closest('.range-row').querySelector('output').textContent = f.format(Number(e.target.value));
+  });
+  form.querySelectorAll('[data-chip]').forEach((chip) => chip.addEventListener('click', () => {
+    for (const [name, value] of Object.entries(p.chips[chip.dataset.chip].set)) {
+      const el = form.elements[name];
+      if (el.type === 'checkbox') el.checked = value;
+      else el.value = value;
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+    run(p);
+  }));
+}
+
+if (params.get('autorun') === '1') visible.forEach(run);
+</script>
+</body>
+</html>

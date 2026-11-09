@@ -2,7 +2,7 @@ import http from 'node:http';
 import { fileURLToPath } from 'node:url';
 
 // What helmet would set. Tune CSP for your app; this one is for a JSON API.
-const SECURITY_HEADERS = {
+export const SECURITY_HEADERS = {
   'Content-Security-Policy': "default-src 'none'; frame-ancestors 'none'",
   'Strict-Transport-Security': 'max-age=31536000; includeSubDomains',
   'X-Content-Type-Options': 'nosniff',

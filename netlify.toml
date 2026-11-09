@@ -1,0 +1,5 @@
+# Hosted preview of the demo. It replays demo/recordings.json and runs no attack code.
+# Refresh the recordings locally with `npm run demo:record` (needs Google Chrome).
+[build]
+  command = "node demo/static.mjs build"
+  publish = "demo/dist"
